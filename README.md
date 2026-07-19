@@ -158,10 +158,10 @@ Track **RED** for the API (Rate, Errors, Duration) and **USE** for resources
   rate crosses your threshold.
 
 - **DB failure injection.** Mid-run: `docker compose -f infra/docker-compose.yml
-  stop db`. Watch the error rate spike and see whether the app returns clean 5xx
-  or hangs. Then `start db` and measure recovery time. (Heads-up: the service
-  currently raises an unhandled `ValueError` when an account is missing, surfacing
-  as a 500 — hardening that into a clean 4xx/5xx is itself a good exercise.)
+  stop db`. DB errors are now caught and returned as **503** (logged with a full
+  stack trace, counted in `bank_errors_total{type="database"}`), so the *Error
+  rate* panel's 5xx line lights up. Then `start db` — the app reconnects on the
+  next request (SQLAlchemy pool), no restart needed; measure recovery time.
 
 - **Resource limits.** Add `deploy.resources.limits` (`cpus`, `memory`) to the
   `app` service, or `docker update --cpus 0.5 --memory 256m <container>`, then
@@ -178,10 +178,12 @@ Track **RED** for the API (Rate, Errors, Duration) and **USE** for resources
   buffers, cold OS page cache) against steady state. Add a warm-up phase or
   discard the opening window when reading results.
 
-**Where to look:** Rate = `http_requests_total`; Errors = 5xx share of
-`http_requests_total`; Duration = `http_request_duration_seconds` p50/p95/p99;
-container CPU/mem from cAdvisor; DB connections & commit/rollback rate from
-`postgres-exporter`.
+**Where to look:** Rate = `http_requests_total`; Errors = 4xx/5xx share of
+`http_requests_total` plus the domain-level `bank_errors_total{type}` (missing
+account → 404/`account_not_found`, DB down → 503/`database`); Duration =
+`http_request_duration_seconds` p50/p95/p99; container CPU/mem from cAdvisor; DB
+connections & commit/rollback rate from `postgres-exporter`. Application failures
+are also logged to stdout — `docker compose -f infra/docker-compose.yml logs app`.
 
 ---
 

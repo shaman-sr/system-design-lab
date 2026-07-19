@@ -41,7 +41,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Error rate (5xx as % of all requests)",
+      "title": "Error rate (4xx / 5xx as % of all requests)",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
@@ -50,6 +50,11 @@
           "refId": "A",
           "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)",
           "legendFormat": "5xx ratio"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)",
+          "legendFormat": "4xx ratio"
         }
       ]
     },
@@ -136,6 +141,27 @@
       "targets": [
         { "refId": "A", "expr": "rate(pg_stat_database_xact_commit{datname=\"bank\"}[1m])", "legendFormat": "commits" },
         { "refId": "B", "expr": "rate(pg_stat_database_xact_rollback{datname=\"bank\"}[1m])", "legendFormat": "rollbacks" }
+      ]
+    },
+    { "type": "row", "title": "Errors — application (bank_errors_total)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 } },
+    {
+      "type": "timeseries",
+      "title": "Application errors /s by type",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (type) (rate(bank_errors_total[1m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Total application errors (cumulative)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (type) (bank_errors_total)", "legendFormat": "{{type}}" }
       ]
     }
   ]

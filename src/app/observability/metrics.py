@@ -28,3 +28,12 @@ TRANSACTION_AMOUNT_PAISE = Counter(
     "Cumulative sum of transaction amounts in paise, by type",
     ["type"],
 )
+
+# Count of application errors, split by type (account_not_found, database, ...).
+# Gives a domain-level view of failures in Grafana, complementing the generic
+# http_requests_total{status=~"4..|5.."} signal.
+APP_ERRORS = Counter(
+    "bank_errors_total",
+    "Number of application errors, by type",
+    ["type"],
+)
