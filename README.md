@@ -74,6 +74,14 @@ plus `postgres-exporter`, `cadvisor`, and `adminer`.
 In Grafana, open the **FastAPI Lab** dashboard (RED + business + resource
 panels) and the **k6** dashboard (client-side load metrics).
 
+For the container CPU/memory panels to show real **names** (`infra-app-1`,
+`infra-db-1`, …) instead of cgroup ids, run this once after startup — and again
+after any `up --build app` (container ids change on rebuild):
+
+```bash
+uv run python ops/scripts/relabel_containers.py
+```
+
 ### Smoke-check by hand
 
 ```bash
@@ -90,6 +98,10 @@ curl -s -X POST localhost:8000/api/transaction/ \
 # metrics are flowing
 curl -s localhost:8000/metrics | grep -E 'http_requests_total|bank_transactions_created_total'
 ```
+
+> **New to reading the dashboards?** See **[docs/READING-THE-DASHBOARD.md](docs/READING-THE-DASHBOARD.md)**
+> — a plain-English, panel-by-panel decoder (normal vs alarming, what each line
+> means, the container-ID cheat sheet, and "which panel reacts to which experiment").
 
 ---
 

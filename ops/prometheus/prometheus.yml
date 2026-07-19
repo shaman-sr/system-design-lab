@@ -1,28 +1,62 @@
-# Prometheus scrape configuration for the lab stack.
-# Short intervals so graphs are responsive during load tests.
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
-
 scrape_configs:
-  # The FastAPI app's /metrics endpoint (RED signals + custom bank_* counters).
-  # "app" is the compose service name, resolvable on the compose network.
-  - job_name: fastapi-app
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["app:8000"]
-
-  # Postgres internals (connections, commits/rollbacks, locks, ...).
-  - job_name: postgres
-    static_configs:
-      - targets: ["postgres-exporter:9187"]
-
-  # Per-container CPU / memory / network / fs (USE signals).
-  - job_name: cadvisor
-    static_configs:
-      - targets: ["cadvisor:8080"]
-
-  # Prometheus scraping itself.
-  - job_name: prometheus
-    static_configs:
-      - targets: ["localhost:9090"]
+- job_name: fastapi-app
+  metrics_path: /metrics
+  static_configs:
+  - targets:
+    - app:8000
+- job_name: postgres
+  static_configs:
+  - targets:
+    - postgres-exporter:9187
+- job_name: cadvisor
+  static_configs:
+  - targets:
+    - cadvisor:8080
+  metric_relabel_configs:
+  - source_labels:
+    - id
+    regex: /docker/(.{12}).*
+    target_label: container
+    replacement: ${1}
+  - source_labels:
+    - id
+    regex: /docker/f6f64864a1a55812865c710f96a90a12e26da2d12941a768d56c842aaaaf5eda
+    target_label: container
+    replacement: infra-prometheus-1
+  - source_labels:
+    - id
+    regex: /docker/c147968898a7131b4cc32a876bb00ae1a49de101f217b9d85a50a4814c189251
+    target_label: container
+    replacement: infra-cadvisor-1
+  - source_labels:
+    - id
+    regex: /docker/2dcee06ae6f8124785200d09f3eaf7c56343fad28803bb4fa7a6c3e11ef1c0a7
+    target_label: container
+    replacement: infra-grafana-1
+  - source_labels:
+    - id
+    regex: /docker/749eb9427065e785959e1d667b4ddc57d963f5aea2386627093943e2c2c86a75
+    target_label: container
+    replacement: infra-app-1
+  - source_labels:
+    - id
+    regex: /docker/939d41414e5812637decaa814f7c97665c7340fb92f3210f9b724436af47a37e
+    target_label: container
+    replacement: infra-postgres-exporter-1
+  - source_labels:
+    - id
+    regex: /docker/f455bdf43628f9d3bf6417a7031ad1d898d8512d04772da948d0850981c3dda4
+    target_label: container
+    replacement: infra-adminer-1
+  - source_labels:
+    - id
+    regex: /docker/5cfcf4164a71c9714ec3272da8e7fd7f1434d2b232901e8d1fb2be1c6839fb9d
+    target_label: container
+    replacement: infra-db-1
+- job_name: prometheus
+  static_configs:
+  - targets:
+    - localhost:9090

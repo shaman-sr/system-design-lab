@@ -49,6 +49,9 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       # Required so k6 can push its metrics in via remote-write.
       - "--web.enable-remote-write-receiver"
+      # Allows POST /-/reload to hot-reload config (used by the container
+      # name-mapping script so you don't have to restart Prometheus).
+      - "--web.enable-lifecycle"
     volumes:
       - ../ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - promdata:/prometheus

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlmodel import Session
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.app.config.config import get_session
 from src.app.exceptions import AccountNotFoundError
@@ -11,29 +11,29 @@ router = APIRouter(
     tags=["transactions"]
 )
 
-# Controllers stay thin: they call the service and let domain exceptions
+# Controllers stay thin: they call the (async) service and let domain exceptions
 # propagate to the exception handlers registered in main.py (which log them,
 # increment bank_errors_total, and return the right status code).
 
 @router.post("/account", status_code=201)
-def create_account(request: CreateAccount, session: Session = Depends(get_session)):
+async def create_account(request: CreateAccount, session: AsyncSession = Depends(get_session)):
     service = AccountService(session)
-    return service.create_account(request)
+    return await service.create_account(request)
 
 @router.get("/account")
-def get_account_by_id(account_id: int, session: Session = Depends(get_session)):
+async def get_account_by_id(account_id: int, session: AsyncSession = Depends(get_session)):
     service = AccountService(session)
-    account = service.get_account_by_id(account_id)
+    account = await service.get_account_by_id(account_id)
     if account is None:
         raise AccountNotFoundError(f"Account {account_id} not found")
     return account
 
 @router.get("/transaction/")
-def get_transaction_by_id(account_id: int, session: Session = Depends(get_session)):
+async def get_transaction_by_id(account_id: int, session: AsyncSession = Depends(get_session)):
     service = TransactionService(session)
-    return service.get_transaction_by_account_id(account_id)
+    return await service.get_transaction_by_account_id(account_id)
 
 @router.post("/transaction/")
-def create_transaction(request: CreateTransaction, session: Session = Depends(get_session)):
+async def create_transaction(request: CreateTransaction, session: AsyncSession = Depends(get_session)):
     service = TransactionService(session)
-    return service.create_transaction(request)
+    return await service.create_transaction(request)

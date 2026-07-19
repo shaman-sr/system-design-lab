@@ -24,55 +24,47 @@
     ]
   },
   "panels": [
-    { "type": "row", "title": "API — RED signals", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    { "type": "row", "title": "API — RED signals (Rate, Errors, Duration)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
     {
       "type": "timeseries",
       "title": "Request rate (req/s) by handler",
+      "description": "How many requests/second each endpoint is serving (the 'R' in RED = throughput). Each line is one route. NORMAL: tracks your traffic; flat ~0.2/s on /metrics is just Prometheus scraping itself — ignore it. WATCH: a sudden drop to zero during a test means the app stopped accepting requests (crash or overload).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
       "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (handler) (rate(http_requests_total{handler=~\"$handler\"}[1m]))",
-          "legendFormat": "{{handler}}"
-        }
+        { "refId": "A", "expr": "sum by (handler) (rate(http_requests_total{handler=~\"$handler\"}[1m]))", "legendFormat": "{{handler}}" }
       ]
     },
     {
       "type": "timeseries",
       "title": "Error rate (4xx / 5xx as % of all requests)",
+      "description": "Share of requests that failed (the 'E' in RED). 5xx = SERVER's fault (bug, DB down) — this is what pages you. 4xx = CLIENT's fault (asked for a missing account) — usually fine. NORMAL: both flat at 0. WATCH: any sustained 5xx line. 0.02 on this axis = 2% of requests failing.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
       "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)",
-          "legendFormat": "5xx ratio"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)",
-          "legendFormat": "4xx ratio"
-        }
+        { "refId": "A", "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)", "legendFormat": "5xx ratio (server errors)" },
+        { "refId": "B", "expr": "sum(rate(http_requests_total{status=~\"4..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)", "legendFormat": "4xx ratio (client errors)" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Latency (seconds) — p50 / p95 / p99",
+      "title": "Latency — p50 / p95 / p99 (seconds)",
+      "description": "How long requests take (the 'D' in RED). Read p95/p99, NOT the average — p95=2s means 5% of users waited >2s. p50 is the typical request. Buckets now run to 60s so big slowdowns are visible (they used to clamp at 1s). NORMAL: tens of ms. WATCH: p99 climbing while p50 stays low = a slow tail (some requests queueing).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p50 (typical)" },
         { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p95" },
-        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p99 (worst)" }
       ]
     },
     {
       "type": "timeseries",
       "title": "Requests/s by status class",
+      "description": "Same requests as the rate panel, but split by outcome: 2xx (success), 4xx (client error), 5xx (server error). NORMAL: one green 2xx line. WATCH: a red 5xx line appearing = server-side failures; a 4xx line = clients hitting missing resources.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
       "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
@@ -80,10 +72,11 @@
         { "refId": "A", "expr": "sum by (status) (rate(http_requests_total[1m]))", "legendFormat": "{{status}}" }
       ]
     },
-    { "type": "row", "title": "Business — transactions", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 } },
+    { "type": "row", "title": "Business — transactions (your custom metrics)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 } },
     {
       "type": "timeseries",
       "title": "Transactions created /s by type",
+      "description": "Successful transactions committed per second, split credit vs debit (from your bank_transactions_created_total counter). This is a DOMAIN metric no generic tool gives you. NORMAL: tracks POST /transaction traffic. WATCH: drops to 0 while requests continue = writes are failing (check the error panels).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
       "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
@@ -94,6 +87,7 @@
     {
       "type": "timeseries",
       "title": "Money throughput (paise/s) by type",
+      "description": "Sum of transaction amounts flowing through per second (bank_transaction_amount_paise_total). Shows business volume in money terms, not just request counts.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
@@ -101,30 +95,33 @@
         { "refId": "A", "expr": "sum by (type) (rate(bank_transaction_amount_paise_total[1m]))", "legendFormat": "{{type}}" }
       ]
     },
-    { "type": "row", "title": "Resources — USE (containers & DB)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 } },
+    { "type": "row", "title": "Resources — USE (are containers/DB saturated?)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 } },
     {
       "type": "timeseries",
-      "title": "Container CPU cores (cAdvisor)",
+      "title": "Container CPU cores (by 12-char container ID)",
+      "description": "CPU used per container, in cores (1.0 = one full core). Legend shows the container NAME (via Prometheus relabeling — run ops/scripts/relabel_containers.py after a rebuild to refresh names). NORMAL: near 0 when idle. WATCH: a line pinned near 1.0 under load = that container is CPU-bound. 'Is it the DB or the app that's pegged?' — this panel answers it.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/docker/.+\",cpu=\"total\"}[1m]))", "legendFormat": "{{id}}" }
+        { "refId": "A", "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{id=~\"/docker/.+\",cpu=\"total\"}[1m]))", "legendFormat": "{{container}}" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Container memory (cAdvisor)",
+      "title": "Container memory (by 12-char container ID)",
+      "description": "Memory used per container. Legend shows the container NAME (via Prometheus relabeling — run ops/scripts/relabel_containers.py after a rebuild to refresh names). NORMAL: app steady ~100 MiB; Prometheus itself is the big one (it holds metrics in RAM) — that's expected, not a leak. WATCH: the APP's line climbing steadily over a long run and never coming back down = a memory leak.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
       "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum by (id) (container_memory_usage_bytes{id=~\"/docker/.+\"})", "legendFormat": "{{id}}" }
+        { "refId": "A", "expr": "sum by (container) (container_memory_usage_bytes{id=~\"/docker/.+\"})", "legendFormat": "{{container}}" }
       ]
     },
     {
       "type": "timeseries",
       "title": "Postgres active connections",
+      "description": "Open connections to the 'bank' database. Your app's pool allows 5 + 10 overflow = 15 max. NORMAL: a handful. WATCH: pinned at 15 while latency climbs = CONNECTION-POOL EXHAUSTION — requests are queueing for a DB connection (saturation without the DB itself being busy).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
@@ -135,6 +132,7 @@
     {
       "type": "timeseries",
       "title": "Postgres commits / rollbacks per second",
+      "description": "DB write activity. Commits = successful writes (tracks your POST /transaction rate). Rollbacks = failed/aborted transactions. NORMAL: commits track traffic, rollbacks ~0. WATCH: a rollback spike = transactions failing at the DB level.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
       "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
@@ -143,10 +141,11 @@
         { "refId": "B", "expr": "rate(pg_stat_database_xact_rollback{datname=\"bank\"}[1m])", "legendFormat": "rollbacks" }
       ]
     },
-    { "type": "row", "title": "Errors — application (bank_errors_total)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 } },
+    { "type": "row", "title": "Errors — application (why did it fail?)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 } },
     {
       "type": "timeseries",
       "title": "Application errors /s by type",
+      "description": "Failures per second, labelled by CAUSE (from bank_errors_total): account_not_found → returned 404, database → returned 503, unexpected → 500. Tells you WHY requests failed, which the status-class panel can't. NORMAL: empty. WATCH: any line — the label names the root cause.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
       "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
@@ -156,7 +155,8 @@
     },
     {
       "type": "stat",
-      "title": "Total application errors (cumulative)",
+      "title": "Total application errors (cumulative, by type)",
+      "description": "Running total of each error type since the app started. A quick scoreboard: 'how many account_not_found vs database errors have I caused?' Resets when the app restarts.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
