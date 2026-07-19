@@ -1,0 +1,50 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+
+# Virtual environments (must not leak a host-built venv into the image)
+.venv/
+venv/
+env/
+
+# uv / pip caches
+.uv/
+.cache/
+pip-wheel-metadata/
+
+# Test / lint / type-checker caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.basedpyright/
+.coverage
+htmlcov/
+
+# Env & secrets — never bake these into an image
+.env
+.env.*
+*.pem
+*.key
+
+# Version control
+.git/
+.gitignore
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.zed/
+.DS_Store
+
+# Docs / misc that don't belong in the image
+*.md
+README*
+
+# Not needed inside the app image
+infra/
+ops/
+load_test/
+prometheus-3.13.1.darwin-amd64/

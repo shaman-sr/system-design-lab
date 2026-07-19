@@ -1,0 +1,28 @@
+# Prometheus scrape configuration for the lab stack.
+# Short intervals so graphs are responsive during load tests.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # The FastAPI app's /metrics endpoint (RED signals + custom bank_* counters).
+  # "app" is the compose service name, resolvable on the compose network.
+  - job_name: fastapi-app
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:8000"]
+
+  # Postgres internals (connections, commits/rollbacks, locks, ...).
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # Per-container CPU / memory / network / fs (USE signals).
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # Prometheus scraping itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

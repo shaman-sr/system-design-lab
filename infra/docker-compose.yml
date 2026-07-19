@@ -1,7 +1,10 @@
 services:
 
   db:
-    image: postgres
+    # Pinned major version for a reproducible lab. Postgres 18 changed its
+    # data-directory layout and refuses the classic /var/lib/postgresql/data
+    # mount used below, so we pin to 17.
+    image: postgres:17
     restart: always
     shm_size: 256mb
     environment:
@@ -25,8 +28,8 @@ services:
 
   app:
     build:
-      context: ../src
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: infra/Dockerfile
     ports:
       - 8000:8000
     depends_on:
@@ -35,5 +38,65 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:mysecretpassword@db:5432/bank
 
+  # --- Observability stack ---------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - 9090:9090
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      # Required so k6 can push its metrics in via remote-write.
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ../ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ../ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # Exposes Postgres internals (connections, commits/rollbacks, locks) as metrics.
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres:mysecretpassword@db:5432/bank?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Per-container CPU / memory / network / filesystem metrics.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    # Adminer already uses host 8080, so publish cAdvisor on 8081.
+    ports:
+      - 8081:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:

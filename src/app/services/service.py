@@ -1,7 +1,8 @@
 from sqlmodel import Session, select
 
 from src.app.models.model import Account, Transaction
-from src.app.schemas.schema import CreateTransaction
+from src.app.observability.metrics import TRANSACTIONS_CREATED, TRANSACTION_AMOUNT_PAISE
+from src.app.schemas.schema import CreateAccount, CreateTransaction
 
 class TransactionService:
 
@@ -28,6 +29,11 @@ class TransactionService:
         self.session.add(account)
         self.session.commit()
         self.session.refresh(new_transaction)
+
+        # Record business metrics only after a successful commit.
+        TRANSACTIONS_CREATED.labels(type=transaction.type).inc()
+        TRANSACTION_AMOUNT_PAISE.labels(type=transaction.type).inc(transaction.amount)
+
         return new_transaction
 
     def get_transaction_by_account_id(self, account_id: int):
@@ -45,3 +51,10 @@ class AccountService:
 
     def get_account_by_id(self, account_id: int):
         return self.session.get(Account, account_id)
+
+    def create_account(self, data: CreateAccount):
+        account = Account(balance_paise=data.balance_paise)
+        self.session.add(account)
+        self.session.commit()
+        self.session.refresh(account)
+        return account

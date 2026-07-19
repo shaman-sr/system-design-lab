@@ -1,0 +1,142 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "title": "FastAPI Lab — API (RED) + Business + Resources (USE)",
+  "uid": "lab-fastapi",
+  "schemaVersion": 39,
+  "tags": ["lab", "fastapi"],
+  "templating": {
+    "list": [
+      {
+        "name": "handler",
+        "label": "Handler",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(http_requests_total, handler)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    { "type": "row", "title": "API — RED signals", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "type": "timeseries",
+      "title": "Request rate (req/s) by handler",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (handler) (rate(http_requests_total{handler=~\"$handler\"}[1m]))",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate (5xx as % of all requests)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 1)",
+          "legendFormat": "5xx ratio"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency (seconds) — p50 / p95 / p99",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests/s by status class",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (rate(http_requests_total[1m]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    { "type": "row", "title": "Business — transactions", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 } },
+    {
+      "type": "timeseries",
+      "title": "Transactions created /s by type",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (type) (rate(bank_transactions_created_total[1m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Money throughput (paise/s) by type",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (type) (rate(bank_transaction_amount_paise_total[1m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    { "type": "row", "title": "Resources — USE (containers & DB)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 } },
+    {
+      "type": "timeseries",
+      "title": "Container CPU cores (cAdvisor)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/docker/.+\",cpu=\"total\"}[1m]))", "legendFormat": "{{id}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Container memory (cAdvisor)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (id) (container_memory_usage_bytes{id=~\"/docker/.+\"})", "legendFormat": "{{id}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Postgres active connections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(pg_stat_database_numbackends{datname=\"bank\"})", "legendFormat": "backends (bank)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Postgres commits / rollbacks per second",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "rate(pg_stat_database_xact_commit{datname=\"bank\"}[1m])", "legendFormat": "commits" },
+        { "refId": "B", "expr": "rate(pg_stat_database_xact_rollback{datname=\"bank\"}[1m])", "legendFormat": "rollbacks" }
+      ]
+    }
+  ]
+}

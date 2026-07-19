@@ -3,7 +3,8 @@ import uuid
 from datetime import datetime
 
 class Account(SQLModel, table=True):
-    id: int = Field(primary_key=True)
+    # id is None until the row is inserted; the DB assigns an autoincrement value.
+    id: int | None = Field(default=None, primary_key=True)
     balance_paise: int = Field(default=0, nullable=False)
 
 class Transaction(SQLModel, table=True):

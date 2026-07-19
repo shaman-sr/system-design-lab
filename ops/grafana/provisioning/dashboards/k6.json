@@ -1,0 +1,64 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "title": "k6 — Load test (client-side)",
+  "uid": "lab-k6",
+  "schemaVersion": 39,
+  "tags": ["lab", "k6"],
+  "panels": [
+    {
+      "type": "text",
+      "title": "About",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "Populated only while a k6 run streams via `-o experimental-prometheus-rw`. Metric names follow k6's Prometheus remote-write output; trend stats depend on `K6_PROMETHEUS_RW_TREND_STATS` (this lab uses `p(95),p(99),min,max`). If a panel is empty, either no run is active or your k6 version names the series differently — import Grafana dashboard **ID 19665** as an alternative."
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Virtual users (VUs)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 3 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "k6_vus", "legendFormat": "VUs" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request rate (req/s, client-side)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(k6_http_reqs_total[1m]))", "legendFormat": "http_reqs" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP request duration (client-side)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "k6_http_req_duration_p95", "legendFormat": "p95" },
+        { "refId": "B", "expr": "k6_http_req_duration_p99", "legendFormat": "p99" },
+        { "refId": "C", "expr": "k6_http_req_duration_max", "legendFormat": "max" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Failed request ratio (client-side)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "k6_http_req_failed_rate", "legendFormat": "failed rate" }
+      ]
+    }
+  ]
+}

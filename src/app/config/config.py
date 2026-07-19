@@ -1,6 +1,11 @@
+import os
+
 from sqlmodel import SQLModel, create_engine, Session
 
-DATABASE_URL = "postgresql://postgres:mysecretpassword@db:5432/bank"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:mysecretpassword@db:5432/bank",
+)
 
 engine = create_engine(DATABASE_URL, echo=False)
 

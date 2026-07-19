@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Downloaded Prometheus binary distribution (use the containerized Prometheus instead)
+prometheus-3.13.1.darwin-amd64/

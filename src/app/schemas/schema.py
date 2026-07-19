@@ -7,3 +7,6 @@ class CreateTransaction(BaseModel):
     amount: int = Field(...)
     description: str | None = Field(None)
     occured_at: datetime = Field(...)
+
+class CreateAccount(BaseModel):
+    balance_paise: int = Field(0, ge=0)
