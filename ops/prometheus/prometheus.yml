@@ -4,13 +4,24 @@ global:
 scrape_configs:
 - job_name: fastapi-app
   metrics_path: /metrics
-  static_configs:
-  - targets:
-    - app:8000
+  # DNS service discovery instead of a single static target: with `--scale app=N`
+  # the name `app` resolves to every replica IP. A static `app:8000` would scrape
+  # a random single replica each interval and make metrics flap; this discovers
+  # one target per replica (one `instance` series each).
+  dns_sd_configs:
+  - names:
+    - app
+    type: A
+    port: 8000
+    refresh_interval: 5s
 - job_name: postgres
   static_configs:
   - targets:
     - postgres-exporter:9187
+- job_name: pgbouncer
+  static_configs:
+  - targets:
+    - pgbouncer-exporter:9127
 - job_name: cadvisor
   static_configs:
   - targets:
@@ -23,37 +34,37 @@ scrape_configs:
     replacement: ${1}
   - source_labels:
     - id
-    regex: /docker/f6f64864a1a55812865c710f96a90a12e26da2d12941a768d56c842aaaaf5eda
-    target_label: container
-    replacement: infra-prometheus-1
-  - source_labels:
-    - id
-    regex: /docker/c147968898a7131b4cc32a876bb00ae1a49de101f217b9d85a50a4814c189251
-    target_label: container
-    replacement: infra-cadvisor-1
-  - source_labels:
-    - id
-    regex: /docker/2dcee06ae6f8124785200d09f3eaf7c56343fad28803bb4fa7a6c3e11ef1c0a7
+    regex: /docker/495858a24259bf5196001c0879808acf98be90e3dd00ecedad699b2cffd997e5
     target_label: container
     replacement: infra-grafana-1
   - source_labels:
     - id
-    regex: /docker/749eb9427065e785959e1d667b4ddc57d963f5aea2386627093943e2c2c86a75
+    regex: /docker/fb03e100e797ee62dea09a52b55f1e4fa7e29af44cb1076ddfd07e1319daed6e
     target_label: container
-    replacement: infra-app-1
+    replacement: infra-prometheus-1
   - source_labels:
     - id
-    regex: /docker/939d41414e5812637decaa814f7c97665c7340fb92f3210f9b724436af47a37e
+    regex: /docker/13e41ff887ad5caba03d28e43643e4fd4b5e940231350d392cbf7982b28f8123
     target_label: container
-    replacement: infra-postgres-exporter-1
+    replacement: infra-cadvisor-1
   - source_labels:
     - id
-    regex: /docker/f455bdf43628f9d3bf6417a7031ad1d898d8512d04772da948d0850981c3dda4
+    regex: /docker/606b14c73d87ed2690a2032748d045de869d0b15b2ae768c116094a0f4ffceb7
     target_label: container
     replacement: infra-adminer-1
   - source_labels:
     - id
-    regex: /docker/5cfcf4164a71c9714ec3272da8e7fd7f1434d2b232901e8d1fb2be1c6839fb9d
+    regex: /docker/bf1ba341d6593a44c20cf01f50de0940a984efa876492c965f57a9933977dc9c
+    target_label: container
+    replacement: infra-app-1
+  - source_labels:
+    - id
+    regex: /docker/7219709387a00bc28fa8c392db98f2572ecadb75cbfab498514b95236543480b
+    target_label: container
+    replacement: infra-postgres-exporter-1
+  - source_labels:
+    - id
+    regex: /docker/97a1708cf5db1550ed917d60154a36d7b1b5a758712606d3067897dcffaf840b
     target_label: container
     replacement: infra-db-1
 - job_name: prometheus

@@ -1,6 +1,7 @@
 from sqlmodel import Field, SQLModel
 import uuid
 from datetime import datetime
+import sqlmodel
 
 class Account(SQLModel, table=True):
     # id is None until the row is inserted; the DB assigns an autoincrement value.
@@ -13,5 +14,9 @@ class Transaction(SQLModel, table=True):
     type: str = Field(nullable=False)
     amount_paise: int = Field(nullable=False)
     description: str | None = Field(nullable=True)
-    created_at: datetime = Field(default_factory=datetime.now)
-    occured_at: datetime = Field(nullable=False)
+    created_at: datetime = Field(
+        sa_column=sqlmodel.Column(sqlmodel.DateTime(timezone=True), nullable=False)
+    )
+    occured_at: datetime = Field(
+        sa_column=sqlmodel.Column(sqlmodel.DateTime(timezone=True), nullable=False)
+    )

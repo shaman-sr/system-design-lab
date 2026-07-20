@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,6 +30,7 @@ class TransactionService:
                 type=transaction.type,
                 amount_paise=transaction.amount,
                 description=transaction.description,
+                created_at=datetime.now(),
                 occured_at=transaction.occured_at
             )
 

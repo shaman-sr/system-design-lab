@@ -30,13 +30,54 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile
-    ports:
-      - 8000:8000
+    # No host port mapping: with `--scale app=N` the replicas can't all bind the
+    # same host port. They're reachable on the compose network as app:8000 and
+    # fronted by the app_lb (nginx) service below.
     depends_on:
+      pgbouncer:
+        condition: service_started
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://postgres:mysecretpassword@db:5432/bank
+      # Route the app through PgBouncer (transaction pooling) instead of hitting
+      # Postgres directly, so the replicas multiplex onto a small server pool.
+      - DATABASE_URL=postgresql://postgres:mysecretpassword@pgbouncer:6432/bank
+
+  # Connection pooler / multiplexer in front of Postgres (the RDS-Proxy role).
+  # Config is mounted from ../ops/pgbouncer; the edoburu image runs pgbouncer
+  # with those files rather than generating its own.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    volumes:
+      - ../ops/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ../ops/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Exposes PgBouncer's SHOW STATS/POOLS as Prometheus metrics (pool size,
+  # waiting clients, server/client connection counts).
+  pgbouncer-exporter:
+    image: prometheuscommunity/pgbouncer-exporter:latest
+    restart: unless-stopped
+    command:
+      - "--pgBouncer.connectionString=postgres://postgres:mysecretpassword@pgbouncer:6432/pgbouncer?sslmode=disable"
+    depends_on:
+      - pgbouncer
+
+  # Load balancer for the FastAPI replicas. Publishes host 8000 and round-robins
+  # across all `app` replicas (see ../ops/nginx/nginx.conf). This is what k6 and
+  # curl hit on localhost:8000.
+  app_lb:
+    image: nginx:1.27
+    restart: unless-stopped
+    ports:
+      - 8000:8000
+    volumes:
+      - ../ops/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
 
   # --- Observability stack ---------------------------------------------------
 
