@@ -10,7 +10,7 @@ class Account(SQLModel, table=True):
 
 class Transaction(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    account_id: int = Field(foreign_key="account.id")
+    account_id: int = Field(foreign_key="account.id", index=True)
     type: str = Field(nullable=False)
     amount_paise: int = Field(nullable=False)
     description: str | None = Field(nullable=True)

@@ -15,10 +15,11 @@ import { sleep } from 'k6';
 import {
   BASE_URL,
   START_BALANCE_PAISE,
+  NUM_ACCOUNTS,
   thresholds,
   selectedScenario,
 } from './lib/config.js';
-import { randomTransaction, is2xx } from './lib/helpers.js';
+import { randomTransaction, is2xx, pick } from './lib/helpers.js';
 
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
@@ -27,27 +28,33 @@ export const options = {
   thresholds: thresholds,
 };
 
-// setup() runs once before the test. It creates the account every VU will hit,
-// so the load test is fully self-contained (no manual DB seeding needed).
-// The returned value is passed to every iteration of traffic().
+// setup() runs once before the test. It seeds NUM_ACCOUNTS accounts, so the load
+// test is fully self-contained (no manual DB seeding needed) and traffic can be
+// spread across many rows instead of hammering one. The returned value is passed
+// to every iteration of traffic().
 export function setup() {
-  const res = http.post(
-    `${BASE_URL}/api/account`,
-    JSON.stringify({ balance_paise: START_BALANCE_PAISE }),
-    JSON_HEADERS,
-  );
-  if (res.status !== 201 && res.status !== 200) {
-    throw new Error(`setup failed to create account: ${res.status} ${res.body}`);
+  const accountIds = [];
+  for (let i = 0; i < NUM_ACCOUNTS; i++) {
+    const res = http.post(
+      `${BASE_URL}/api/account`,
+      JSON.stringify({ balance_paise: START_BALANCE_PAISE }),
+      JSON_HEADERS,
+    );
+    if (res.status !== 201 && res.status !== 200) {
+      throw new Error(`setup failed to create account #${i}: ${res.status} ${res.body}`);
+    }
+    accountIds.push(res.json('id'));
   }
-  const accountId = res.json('id');
-  console.log(`setup: created account id=${accountId}`);
-  return { accountId };
+  console.log(`setup: created ${accountIds.length} accounts (ids ${accountIds[0]}..${accountIds[accountIds.length - 1]})`);
+  return { accountIds };
 }
 
 // The workload each virtual user runs, on repeat. Read-heavy mix (~80/20):
 // 40% GET account, 40% GET transactions, 20% POST transaction.
 export function traffic(data) {
-  const id = data.accountId;
+  // Each iteration picks a random account, so reads and writes fan out across all
+  // seeded rows rather than contending on a single hot account.
+  const id = pick(data.accountIds);
   const roll = Math.random();
 
   if (roll < 0.4) {

@@ -65,7 +65,7 @@ usually in the USE panels (CPU pegged, or the DB connection pool full).
 |---|---|---|
 | **Container CPU cores** | CPU per container (1.0 = one full core) | a line pinned near its limit = that container is **CPU-bound**. *This answers "is it the DB or the app that's pegged?"* |
 | **Container memory** | RAM per container | the **app's** line climbing forever = **memory leak**. (Prometheus using lots of RAM is normal — it stores metrics in memory.) |
-| **Postgres active connections** | open DB connections (max 15: pool 5 + overflow 10) | **pinned at 15** while latency climbs = **connection-pool exhaustion** (requests queue for a connection) |
+| **Postgres active connections** | open DB connections. All app replicas multiplex through PgBouncer onto its `default_pool_size` (currently **90**) server pool, so this tops out near 90 regardless of replica count | **pinned near 90** while latency climbs = the PgBouncer pool is saturated (requests queue in PgBouncer — check `SHOW POOLS.cl_waiting`). Raise `default_pool_size`, not the replica count, to lift the ceiling |
 | **Postgres commits/rollbacks** | DB write success vs failure | **rollback spike** = transactions failing at the DB |
 
 ### Errors — application (the "why")
@@ -112,7 +112,7 @@ metric-relabel could map IDs→names automatically; for now this table + hover i
 | **Kill the DB** (`stop db`) | **5xx error line** jumps, **app errors → `database`** appears, **Postgres connections** drops, **rollbacks** may spike |
 | **Missing account** (bad `account_id`) | **4xx line** + **app errors → `account_not_found`** (NOT 5xx — it's a client error) |
 | **Starve CPU** (`docker update --cpus 0.25`) | app's **CPU line** pins at 0.25; **latency** climbs; error rate may follow |
-| **Pool exhaustion** (high VUs) | **Postgres connections pins at 15**, **latency climbs**, but **DB CPU stays low** = queueing, not compute |
+| **Pool exhaustion** (high VUs) | **Postgres connections pin near `default_pool_size` (90)**, **latency climbs**, but **DB CPU stays low** = requests queueing in PgBouncer, not compute. Adding app replicas won't help — raise `default_pool_size` |
 | **Memory leak / soak** (hours) | app's **memory line** creeps up and never recovers |
 
 **The skill:** fault → *which panel moved first* → *why* → fix → re-run and confirm

@@ -121,7 +121,7 @@
     {
       "type": "timeseries",
       "title": "Postgres active connections",
-      "description": "Open connections to the 'bank' database. Your app's pool allows 5 + 10 overflow = 15 max. NORMAL: a handful. WATCH: pinned at 15 while latency climbs = CONNECTION-POOL EXHAUSTION — requests are queueing for a DB connection (saturation without the DB itself being busy).",
+      "description": "Open connections to the 'bank' database. All app replicas multiplex through PgBouncer (transaction mode) onto its default_pool_size = 90 server pool, so this tops out near 90 regardless of replica count. NORMAL: a handful. WATCH: pinned near 90 while latency climbs = PgBouncer pool saturated — requests queue in PgBouncer (SHOW POOLS.cl_waiting), saturation without the DB itself being busy. Raise default_pool_size, not the replica count.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
@@ -162,6 +162,55 @@
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
         { "refId": "A", "expr": "sum by (type) (bank_errors_total)", "legendFormat": "{{type}}" }
+      ]
+    },
+    { "type": "row", "title": "Cache & Pool — Redis + PgBouncer", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 } },
+    {
+      "type": "timeseries",
+      "title": "Cache hit ratio",
+      "description": "Share of GET lookups served from Redis instead of Postgres: hits / (hits + misses) over a 1m window (from redis_keyspace_hits/misses_total). NORMAL for a warm read-heavy cache: high (0.8+). WATCH: a drop toward 0 right after writes = invalidation churn (e.g. the hot-account transaction list being evicted on every POST); a persistently low ratio means the cache isn't earning its keep. 1.0 = every read was a hit (Postgres untouched).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 53 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(redis_keyspace_hits_total[1m])) / clamp_min(sum(rate(redis_keyspace_hits_total[1m])) + sum(rate(redis_keyspace_misses_total[1m])), 1)", "legendFormat": "hit ratio" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hits vs misses (/s)",
+      "description": "The raw rates behind the ratio. hits/s = reads Redis answered (DB skipped); misses/s = reads that fell through to Postgres. WATCH: a misses/s spike immediately after writes is a cache stampede in progress — those misses all become DB queries (throttled by PgBouncer's pool; see the panels below).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 53 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(redis_keyspace_hits_total[1m]))", "legendFormat": "hits/s" },
+        { "refId": "B", "expr": "sum(rate(redis_keyspace_misses_total[1m]))", "legendFormat": "misses/s" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PgBouncer clients — active vs waiting (cl_waiting)",
+      "description": "Client connections at PgBouncer for the bank pool. cl_active = requests currently running a transaction; cl_waiting = requests parked because all server-pool slots are busy. NORMAL: cl_waiting flat at 0. WATCH: cl_waiting climbing = the server pool (default_pool_size=90) is saturated and clients are queueing — the classic stampede/overload signature. This is where a post-invalidation herd shows up.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "pgbouncer_pools_client_active_connections{database=\"bank\"}", "legendFormat": "cl_active" },
+        { "refId": "B", "expr": "pgbouncer_pools_client_waiting_connections{database=\"bank\"}", "legendFormat": "cl_waiting" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PgBouncer server pool — used vs size",
+      "description": "Server connections PgBouncer holds to Postgres for the bank pool vs the configured ceiling. sv_active = in use, sv_idle = warm and free, pool_size = the hard cap (default_pool_size). NORMAL: sv_active well under pool_size. WATCH: sv_active pinned at pool_size with cl_waiting>0 (left panel) = you've hit the DB-tier ceiling; raise default_pool_size, don't just add app replicas.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "pgbouncer_pools_server_active_connections{database=\"bank\"}", "legendFormat": "sv_active" },
+        { "refId": "B", "expr": "pgbouncer_pools_server_idle_connections{database=\"bank\"}", "legendFormat": "sv_idle" },
+        { "refId": "C", "expr": "pgbouncer_databases_pool_size{database=\"bank\"}", "legendFormat": "pool_size (cap)" }
       ]
     }
   ]

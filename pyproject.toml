@@ -10,5 +10,6 @@ dependencies = [
     "greenlet>=3.5.3",
     "prometheus-fastapi-instrumentator>=7.0.0",
     "pydantic[standard]>=2.13.4",
+    "redis>=8.0.1",
     "sqlmodel[standard]>=0.0.39",
 ]

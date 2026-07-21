@@ -6,7 +6,14 @@ services:
     # mount used below, so we pin to 17.
     image: postgres:17
     restart: always
-    shm_size: 256mb
+    # max_connections must sit ABOVE PgBouncer's ceiling (default_pool_size 90 +
+    # reserve_pool_size 10 = up to 100 server connections for the bank pool) plus
+    # the direct postgres-exporter connections and Postgres's own superuser
+    # reserve (3). 100 (the stock default) left no room once the pool was widened,
+    # so raise it to 200. shm_size is bumped to 4gb to give those backends ample
+    # shared-memory headroom under the stress/spike load tests.
+    command: ["postgres", "-c", "max_connections=200"]
+    shm_size: 4gb
     environment:
       POSTGRES_PASSWORD: mysecretpassword
       POSTGRES_USER: postgres
@@ -38,10 +45,14 @@ services:
         condition: service_started
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
     environment:
       # Route the app through PgBouncer (transaction pooling) instead of hitting
       # Postgres directly, so the replicas multiplex onto a small server pool.
       - DATABASE_URL=postgresql://postgres:mysecretpassword@pgbouncer:6432/bank
+      - REDIS_URL=redis://:MySecurePassword123@redis:6379/0
 
   # Connection pooler / multiplexer in front of Postgres (the RDS-Proxy role).
   # Config is mounted from ../ops/pgbouncer; the edoburu image runs pgbouncer
@@ -124,6 +135,39 @@ services:
       db:
         condition: service_healthy
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis_server
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      # Mount your custom config file into the container
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      # Mount a named volume to persist Redis data permanently
+      - redis_data:/data
+    # Overwrite default startup command to execute using your custom config file
+    command: redis-server /usr/local/etc/redis/redis.conf
+    # The app's depends_on waits for `service_healthy`, so Redis must report health.
+    # PING must authenticate because redis.conf sets requirepass.
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a MySecurePassword123 ping | grep -q PONG"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  # Exposes Redis internals (keyspace hits/misses, memory, evictions, clients) as
+  # Prometheus metrics so the dashboard can show the cache hit ratio.
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=MySecurePassword123
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Per-container CPU / memory / network / filesystem metrics.
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
@@ -142,5 +186,7 @@ services:
 
 volumes:
   pgdata:
+  redis_data:
+    driver: local
   promdata:
   grafanadata:

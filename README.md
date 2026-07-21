@@ -173,18 +173,33 @@ Track **RED** for the API (Rate, Errors, Duration) and **USE** for resources
   stop db`. DB errors are now caught and returned as **503** (logged with a full
   stack trace, counted in `bank_errors_total{type="database"}`), so the *Error
   rate* panel's 5xx line lights up. Then `start db` — the app reconnects on the
-  next request (SQLAlchemy pool), no restart needed; measure recovery time.
+  next request (NullPool opens a fresh connection via PgBouncer), no restart
+  needed; measure recovery time.
 
 - **Resource limits.** Add `deploy.resources.limits` (`cpus`, `memory`) to the
   `app` service, or `docker update --cpus 0.5 --memory 256m <container>`, then
   re-run `load`. Watch CPU throttling / OOM kills against latency.
 
-- **Connection-pool exhaustion.** SQLAlchemy defaults to `pool_size=5` +
-  `max_overflow=10` (15 connections total). Push VUs well past that: requests
-  queue *on the pool*, so latency climbs while DB CPU stays low — saturation
-  without utilization, the classic tell. Tune `pool_size` / `max_overflow` /
-  `pool_timeout` in `src/app/config/config.py` (pass them to `create_engine`) and
-  correlate the change with p95.
+- **Connection-pool exhaustion / horizontal scaling.** The app connects through
+  **PgBouncer** in `transaction` pooling mode and uses SQLAlchemy `NullPool`, so
+  PgBouncer is the *single* pool for the whole stack. The throughput knob is
+  therefore **`default_pool_size` in `ops/pgbouncer/pgbouncer.ini`** (currently
+  90), *not* a per-replica SQLAlchemy pool. Two independent axes:
+  - **App/HTTP tier** scales with replicas: `docker compose -f
+    infra/docker-compose.yml up -d --no-deps --no-recreate --scale app=N app`
+    (nginx and Prometheus discover the new replicas automatically). Re-run
+    `uv run python ops/scripts/relabel_containers.py` afterwards so cAdvisor
+    panels label the new containers.
+  - **DB tier** scales with `default_pool_size`. Because every replica multiplexes
+    onto this one pool, adding replicas alone will *not* raise DB throughput past
+    the pool size — push VUs past it and requests queue in PgBouncer
+    (`SHOW POOLS` → `cl_waiting`) while DB CPU stays low: saturation without
+    utilization, the classic tell. Raise `default_pool_size` (keep Postgres
+    `max_connections` in `infra/docker-compose.yml` above it) and correlate with
+    p95. *Why not just remove PgBouncer to get per-replica pools back?* That only
+    "scales" by letting replicas open direct connections until Postgres
+    `max_connections` is exhausted (~6 replicas) and starts rejecting them —
+    exactly the failure mode PgBouncer exists to prevent. Tune the pool instead.
 
 - **Cold vs warm.** Compare the first seconds of a run (cold Postgres shared
   buffers, cold OS page cache) against steady state. Add a warm-up phase or
